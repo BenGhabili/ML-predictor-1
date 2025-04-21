@@ -2,6 +2,7 @@ import sys
 from pathlib import Path
 import pandas as pd
 import pickle
+from joblib import load
 from flask import Flask, request, jsonify
 from services.predictor import predict_from_raw_data, set_model
 
@@ -26,7 +27,8 @@ def load_all_models():
         
         try:
             with open(model_path, 'rb') as f:
-                loaded_models[timeframe] = pickle.load(f)
+                # loaded_models[timeframe] = pickle.load(f)
+                loaded_models[timeframe] = load(f)
             print(f"[OK] Loaded model for {timeframe}min timeframe")
         except Exception as e:
             print(f"[ERROR] Error loading {model_path}: {str(e)}")

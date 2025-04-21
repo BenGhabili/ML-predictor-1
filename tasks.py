@@ -7,8 +7,8 @@ def data(ctx):
     ctx.run("python modules/data_preparation.py")
 
 @task
-def prepare_minute_data(ctx, timeframe=1):
-    ctx.run(f"python modules/data_preparation_x_min.py --timeframe {timeframe}")
+def prepare_minute_data(ctx, timeframe=1, atr=1.0):
+    ctx.run(f"python modules/data_preparation_x_min.py --timeframe {timeframe} --atr-mult {atr}")
 
 @task
 def simple_train(ctx, timeframe=1):

@@ -16,6 +16,8 @@ To run this project, you need to have Python 3.x installed. Then, install the fo
 - scikit-learn: pip install scikit-learn
 - Invoke:    pip install invoke
 - tqdm: pip install tqdm
+<!-- To SMOTE over-sampling -->
+- imbalanced-learn: pip install imbalanced-learn 
 
 These libraries provide the necessary environment for building the REST API, handling and processing data, training models, and running project tasks.
 
