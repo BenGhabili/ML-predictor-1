@@ -45,5 +45,25 @@ def predict_from_raw_data(raw_data):
 
     # Construct a 2D array for scikit‑learn
     X = np.array([[f1, f2, f3]])
-    pred = _model.predict(X)[0]
-    return int(pred)
+
+   # Debug: Check if model supports probabilities
+    if not hasattr(_model, "predict_proba"):
+        print("WARNING: Model doesn't support predict_proba()")
+        return {
+            "prediction": int(_model.predict(X)[0]),
+            "probs": None,
+            "warning": "Model doesn't support confidence scores"
+        }
+    
+    try:
+        proba = _model.predict_proba(X)[0].tolist()
+        print(f"Probabilities: {proba}")  # Debug output
+    except Exception as e:
+        print(f"Probability calculation failed: {str(e)}")
+        proba = None
+
+    return {
+        "prediction": int(_model.predict(X)[0]),
+        "probs": proba,
+        "model_type": _model.__class__.__name__  # Debug info
+    }

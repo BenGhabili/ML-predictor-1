@@ -1,7 +1,7 @@
 import sys
 from pathlib import Path
 import pandas as pd
-import pickle
+from datetime import datetime
 from joblib import load
 from flask import Flask, request, jsonify
 from services.predictor import predict_from_raw_data, set_model
@@ -47,7 +47,7 @@ def ping():
     """Health check endpoint"""
     return jsonify({'status': 'ok'}), 200
 
-@app.route('/predict-knn', methods=['POST'])
+@app.route('/predict', methods=['POST'])
 def predict_knn():
     """
     Prediction endpoint
@@ -82,11 +82,23 @@ def predict_knn():
          # 4) Call your helper—but it expects the full dict with the "history" key,
         #    so wrap it back into that shape:
         wrapped = { "history": history }
-        prediction = predict_from_raw_data(wrapped)
+        result = predict_from_raw_data(wrapped)
 
         # prediction = predict_from_raw_data(raw_data)
         
-        return jsonify({'prediction': prediction}), 200
+        # Enhanced response
+        return jsonify({
+            "prediction": result["prediction"],
+            "direction": ["range", "up", "down"][result["prediction"]],
+            "probabilities": {
+                "range": result["probs"][0],
+                "up": result["probs"][1],
+                "down": result["probs"][2]
+            },
+            "confidence": max(result["probs"]),
+            "timeframe": timeframe,
+            "timestamp": datetime.now().isoformat()
+        }), 200
         
     except ValueError as e:
         return jsonify({'error': 'Invalid data', 'message': str(e)}), 400
