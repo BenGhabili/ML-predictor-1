@@ -61,6 +61,7 @@ coverage.xml
 
 # Data and model artifacts (if you don't want to commit large files)
 data/
+data_raw/
 models/
 *.pkl
 *.h5

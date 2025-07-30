@@ -16,6 +16,7 @@ To run this project, you need to have Python 3.x installed. Then, install the fo
 - scikit-learn: pip install scikit-learn
 - Invoke:    pip install invoke
 - tqdm: pip install tqdm
+- xgboost:  pip install xgboost
 <!-- To SMOTE over-sampling -->
 - imbalanced-learn: pip install imbalanced-learn 
 

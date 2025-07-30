@@ -1,6 +1,10 @@
 # tasks.py in your project root
-
+from pathlib import Path
 from invoke import task
+from datetime import datetime
+from shlex import quote
+
+RAW_DIR = Path("data_raw")
 
 @task
 def data(ctx):
@@ -11,6 +15,63 @@ def prepare_minute_data(ctx, timeframe=1, atr=1.0):
     ctx.run(f"python modules/data_preparation_x_min.py --timeframe {timeframe} --atr-mult {atr}")
 
 @task
+def prep(ctx,
+         timeframe=1,
+         atr_mult=1.0,
+         from_bars=False,
+         prefix="",
+         raw_file=None):
+    """
+    Prepare bar data from a raw price file.
+
+    Examples
+    --------
+    # Pick interactively from *all* files
+    invoke prep --timeframe 1 --atr-mult 0.6
+
+    # Restrict list to files whose names start with 'current_'
+    invoke prep --prefix current_
+
+    # Skip the menu and process a known file that is already bars
+    invoke prep --raw-file nq_6-25contract.last.txt --from-bars
+    """
+    # 1) Resolve which raw file to feed the script
+    if raw_file is None:
+        files = sorted(
+            RAW_DIR.glob(f"{prefix}*"),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True
+        )
+        if not files:
+            print(f"No files in {RAW_DIR} matching prefix '{prefix}'")
+            return
+
+        # show the newest 10
+        for i, p in enumerate(files[:10]):
+            ts = datetime.fromtimestamp(p.stat().st_mtime)     # ← convert
+            print(f"[{i}] {p.name}  ({ts:%d-%b-%y %H:%M})")    # now OK
+
+        choice = input("Which file index? [0]: ").strip() or "0"
+        raw_file = files[int(choice)].name
+    else:
+        # user gave a filename
+        if not (RAW_DIR / raw_file).exists():
+            print(f"{raw_file} not found in {RAW_DIR}")
+            return
+    raw_path = raw_file
+    # 2) Build CLI for the prep script
+    cmd = (
+        f"python modules/data_preparation_x_min.py "
+        f"--timeframe {timeframe} "
+        f"--atr-mult {atr_mult} "
+        f"--raw-file {quote(str(raw_path))} "
+        f"{'--from-bars' if from_bars else ''}"
+    )
+    print("→", cmd)                # plain ASCII arrow
+    ctx.run(cmd)
+    
+    
+@task
 def simple_train(ctx, timeframe=1):
     """
     Train a KNN model on the most recent prepared CSV for the given timeframe.
@@ -18,7 +79,7 @@ def simple_train(ctx, timeframe=1):
     ctx.run(f"python modules/train.py --timeframe {timeframe}")
 
 @task
-def train(ctx, timeframe=1):
+def train(ctx, timeframe=1, algo="rf", trees=400, depth=10, eta=0.05, k=7, cv="walk", save=False, explain=False):
     # 1) Read the data‑list.csv here
     import pandas as pd
     from pathlib import Path
@@ -39,8 +100,16 @@ def train(ctx, timeframe=1):
     idx = int(choice)
     chosen = df_tf.iloc[idx].Filename
 
-    # 4) Finally call your script
-    ctx.run(f"python modules/train.py --timeframe {timeframe} --input data/{chosen}")    
+    save_flag = "--save" if save else ""
+    explain_flag = "--explain" if explain else ""
+
+    cmd = (
+        f"python modules/train.py "
+        f"--algo {algo} --timeframe {timeframe} "
+        f"--input data/{chosen} --trees {trees} --depth {depth} "
+        f"--eta {eta} --k {k} --cv {cv} {save_flag} {explain_flag}"
+    )
+    ctx.run(cmd.strip())
 
 @task
 def api(ctx):
