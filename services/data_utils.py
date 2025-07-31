@@ -265,12 +265,24 @@ def engineer_bar_features(
         ))
     ]
 
+    essential_features = [
+        'ret_3',        # Short-term momentum  
+        'ret_10',       # Medium-term momentum  
+        'atr_norm',     # Normalized volatility  
+        'rsi_14',       # Overbought/oversold  
+        'vol_z10',      # Volume spikes  
+        'hour_sin',     # Session timing  
+        'sigma_10'      # Recent volatility  
+    ]
+
     # ---- NEW: drop rows where rolling indicators are NaN ----
-    out = out.dropna(subset=feature_cols)
+    out = out.dropna(subset=essential_features)
 
     # keep only the feature columns plus the label
-    out = out[feature_cols + ["label3"]]
-    
+    out = out[essential_features + ["label3"]]
+
+    print("Feature Names:", list(out.columns))
+
     return out
 
 

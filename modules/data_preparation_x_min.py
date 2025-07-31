@@ -11,7 +11,7 @@ from services.data_utils import (
     resample_ohlcv
 )
 
-def main(timeframe: int, atr_mult: float, raw_file: str, from_bars: bool):
+def main(timeframe: int, atr_mult: float, raw_file: str, from_bars: bool, save: bool):
     root = Path(__file__).parent.parent
     raw_dir  = root / "data_raw"
     # raw_file = root / "data" / "nq_3feb_25mar_last.txt"   # adjust if needed
@@ -73,9 +73,11 @@ def main(timeframe: int, atr_mult: float, raw_file: str, from_bars: bool):
         print(f"Loading raw ticks from {raw_file} …")
         ticks_df = load_nt8_ticks(file_path)
         print(f"Aggregating to {timeframe}-minute bars …")
-        bars_df = ticks_to_bars(ticks_df, timeframe_min=timeframe,atr_mult=atr_mult, atr_period=14)     
+        bars_df = ticks_to_bars(ticks_df, timeframe_min=timeframe,atr_mult=atr_mult, atr_period=14)
+
+    if save:
+        write_csv_and_log(bars_df, timeframe, out_dir, log_csv, atr_mult)
     
-    write_csv_and_log(bars_df, timeframe, out_dir, log_csv, atr_mult)
     print("Done.")
 
 if __name__ == "__main__":
@@ -90,6 +92,8 @@ if __name__ == "__main__":
                         help="Skip tick aggregation; input file already contains bars.")
     parser.add_argument("--raw-file",  required=True,     # now required
                         help="Filename *or* full path of the raw data file")
+    parser.add_argument("--save", action="store_true",
+                   help="Save the full-data model (default off when experimenting)")
     args = parser.parse_args()
 
-    main(args.timeframe, args.atr_mult, args.raw_file, args.from_bars)
+    main(args.timeframe, args.atr_mult, args.raw_file, args.from_bars, args.save)

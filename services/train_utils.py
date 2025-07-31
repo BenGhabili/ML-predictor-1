@@ -21,7 +21,7 @@ from services.model_defaults import RF, XGB, KNN
 
 
 # ────────────────────────────────────────────────────────────
-def load_processed_csv(csv_path: Path):
+def load_processed_cs2v(csv_path: Path):
     """Read processed_data_* CSV and split into X, y."""
     df = pd.read_csv(csv_path)
     print("Label distribution:\n", df['label3'].value_counts())
@@ -34,6 +34,16 @@ def load_processed_csv(csv_path: Path):
 
     return X, y
 
+def load_processed_csv(csv_path: Path):
+    df = pd.read_csv(csv_path)
+
+    # Get ALL features except label3  
+    feature_cols = [col for col in df.columns if col != 'label3']
+
+    print("Using features:", feature_cols)  # Verify  
+    print("Label distribution:\n", df['label3'].value_counts())
+
+    return df[feature_cols].values, df['label3'].values
 
 # ────────────────────────────────────────────────────────────
 

@@ -20,7 +20,8 @@ def prep(ctx,
          atr_mult=1.0,
          from_bars=False,
          prefix="",
-         raw_file=None):
+         raw_file=None,
+         save=False):
     """
     Prepare bar data from a raw price file.
 
@@ -58,6 +59,7 @@ def prep(ctx,
         if not (RAW_DIR / raw_file).exists():
             print(f"{raw_file} not found in {RAW_DIR}")
             return
+    save_flag = "--save" if save else ""    
     raw_path = raw_file
     # 2) Build CLI for the prep script
     cmd = (
@@ -65,7 +67,7 @@ def prep(ctx,
         f"--timeframe {timeframe} "
         f"--atr-mult {atr_mult} "
         f"--raw-file {quote(str(raw_path))} "
-        f"{'--from-bars' if from_bars else ''}"
+        f"{'--from-bars' if from_bars else ''} {save_flag}"
     )
     print("→", cmd)                # plain ASCII arrow
     ctx.run(cmd)
