@@ -19,6 +19,8 @@ lib64/
 parts/
 sdist/
 var/
+.venv/
+data_orderflow/
 *.egg-info/
 .installed.cfg
 *.egg
