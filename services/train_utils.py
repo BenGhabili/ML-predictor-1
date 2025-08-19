@@ -37,10 +37,17 @@ def load_processed_cs2v(csv_path: Path):
 def load_processed_csv(csv_path: Path):
     df = pd.read_csv(csv_path)
 
-    # Get ALL features except label3  
+    # Get ALL features except label3
     feature_cols = [col for col in df.columns if col != 'label3']
 
-    print("Using features:", feature_cols)  # Verify  
+    # Drop rows with any NaNs in features or label
+    before = len(df)
+    df = df.dropna(subset=feature_cols + ['label3'])
+    after = len(df)
+    if after < before:
+        print(f"Dropped {before - after} rows with NaNs in features/label")
+
+    print("Using features:", feature_cols)  # Verify
     print("Label distribution:\n", df['label3'].value_counts())
 
     return df[feature_cols].values, df['label3'].values

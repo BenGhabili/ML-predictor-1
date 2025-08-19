@@ -116,3 +116,39 @@ def train(ctx, timeframe=1, algo="rf", trees=400, depth=10, eta=0.05, k=7, cv="w
 @task
 def api(ctx):
     ctx.run("python api/app.py")
+
+# ---------------- Orderflow (v0.2) tasks -----------------
+
+@task
+def of_prep(ctx, input, out_dir="data_orderflow", max_rows=None, targets="1,4,8,12,20", horizons="5,10,30,45,90", session_filter=None, tz_exchange=None, rth_hours=None, london_hours=None, no_save=False):
+    """Orderflow data prep: emit compact CSVs per (target,horizon)."""
+    args = ["-m", "modules.orderflow_data_prep", "--input", quote(str(input)), "--out-dir", quote(str(out_dir))]
+    if max_rows is not None:
+        args += ["--max-rows", str(max_rows)]
+    if session_filter:
+        args += ["--session_filter", session_filter]
+    if tz_exchange:
+        args += ["--tz_exchange", tz_exchange]
+    if rth_hours:
+        args += ["--rth_hours", quote(str(rth_hours))]
+    if london_hours:
+        args += ["--london_hours", quote(str(london_hours))]
+    if targets:
+        args += ["--targets_net_ticks", targets]
+    if horizons:
+        args += ["--horizons_s", horizons]
+    if no_save:
+        args += ["--no-save"]
+    cmd = "python " + " ".join(args)
+    ctx.run(cmd)
+
+@task
+def of_train(ctx, input, algo="xgb", cv="walk", trees=400, depth=6, eta=0.05, k=7, save=False, explain=False):
+    """Train on an orderflow compact CSV (no model registry)."""
+    save_flag = "--save" if save else ""
+    explain_flag = "--explain" if explain else ""
+    cmd = (
+        f"python -m modules.train --algo {algo} --input {quote(str(input))} "
+        f"--cv {cv} --trees {trees} --depth {depth} --eta {eta} --k {k} {save_flag} {explain_flag}"
+    )
+    ctx.run(cmd.strip())

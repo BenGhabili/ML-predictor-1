@@ -1,0 +1,69 @@
+project:
+  version: v0.1
+  timezone_input: UTC          # NinjaTrader export assumed UTC
+  timezone_display: Europe/Madrid
+
+data:
+  root: ./data
+  raw_format: ninjatrader_txt
+  # Drop/flag conditions during ETL
+  filters:
+    drop_when_bid_gt_ask: true
+    drop_nonpositive_prices: true
+    spread_caps_ticks:        # cap spreads; rows above are dropped or flagged
+      ES: 4                   # 4 ticks = 1.0 ES point
+      NQ: 8                   # 8 ticks = 2.0 NQ points
+
+roll:                          # continuous contract (training only)
+  method: volume_based
+  dominance_threshold: 0.20    # next contract's RTH volume exceeds front by 20%
+  consecutive_days: 2
+
+symbols:
+  ES:
+    tick_size: 0.25
+    tick_value_usd: 12.5
+    fees_roundtrip_usd: 5.0    # tweak to your broker all-in
+    slippage_ticks_cross: 0.5  # average when crossing
+  NQ:
+    tick_size: 0.25
+    tick_value_usd: 5.0
+    fees_roundtrip_usd: 4.5
+    slippage_ticks_cross: 0.5
+
+features:
+  windows_trades: [25, 50, 100]
+  windows_ms: [250, 500, 1000]
+  use_bid_ask_sizes: false     # TXT lacks size-by-side; keep false
+  zscore_window_s: 60
+
+labels:
+  type: first_tick_move        # alt: cross_spread_pnl
+  target_ticks: 1
+  horizons_s: [2, 5, 10]
+  max_wait_s: 10               # label 0 if neither +1 nor -1 tick within this
+  require_spread_leq_ticks: 4  # only label when spread is sane
+
+train:
+  model: lgbm                  # or xgboost
+  random_seed: 42
+  walk_forward:
+    train_sessions: 20
+    val_sessions: 5
+  importance_method: permutation  # or shap
+
+promotion_gate:
+  min_expectancy_usd: 0.75     # after fees+slippage (set your bar!)
+  min_hit_rate: 0.52           # optional extra guard
+  latency_ms_max: 100          # target 10–20ms; 100ms hard ceiling
+  ks_p_threshold: 0.05
+
+live:
+  risk:
+    max_daily_loss_usd: 200    # set per account tolerance
+    cooldown_s_after_loss: 60
+    max_position: 1
+  logging:
+    write_features: true
+    write_signals: true
+    write_fills: true
