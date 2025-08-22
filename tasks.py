@@ -152,3 +152,18 @@ def of_train(ctx, input, algo="xgb", cv="walk", trees=400, depth=6, eta=0.05, k=
         f"--cv {cv} --trees {trees} --depth {depth} --eta {eta} --k {k} {save_flag} {explain_flag}"
     )
     ctx.run(cmd.strip())
+
+@task
+def of_api(ctx, host="127.0.0.1", port=8001, model="models/xgb_of_t1_h10.pkl"):
+    """Run orderflow FastAPI on a separate port."""
+    cmd = f"ORDERFLOW_MODEL_PATH={quote(str(model))} uvicorn api.orderflow_app:app --host {host} --port {port} --workers 1"
+    ctx.run(cmd)
+
+@task
+def of_gen(ctx, seconds=60, base=17650.0, bps=40, trend='up', spread=0.5, out='data/mock_ticks.jsonl', symbol='NQ', contract='12-25'):
+    ctx.run(f"python scripts/of_generate_mock.py --symbol {symbol} --contract {contract} --seconds {seconds} --base {base} --bps {bps} --trend {trend} --spread {spread} --out {quote(str(out))}")
+
+@task
+def of_replay(ctx, input='data/mock_ticks.jsonl', url='http://127.0.0.1:8000/predict', mode='realtime', speed=1.0, batch_ms=25, threshold=0.0, log='data/replay_log.csv'):
+    th = f" --threshold {threshold}" if float(threshold) > 0 else ""
+    ctx.run(f"python scripts/of_replay.py --input {quote(str(input))} --url {url} --mode {mode} --speed {speed} --batch-ms {batch_ms}{th} --log {quote(str(log))}")

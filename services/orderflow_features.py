@@ -3,6 +3,22 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+# Canonical order for orderflow features used across training and runtime
+OF_FEATURE_ORDER = [
+    "Spread",
+    "last_minus_mid",
+    "aggressor",
+    "signed_size",
+    "cdelta_50",
+    "cdelta_100",
+    "ti_count_500ms",
+    "ret_1s",
+    "vol_2s",
+    "spread_z_60s",
+    "sin_time",
+    "cos_time",
+]
+
 BUY = 1
 SELL = -1
 NONE = 0
