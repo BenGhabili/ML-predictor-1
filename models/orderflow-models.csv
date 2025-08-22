@@ -1,0 +1,4 @@
+filename,target_net_ticks,horizon_s,session_filter,rows,algo,trees,eta,depth,input_csv,created_at,notes
+xgb_of_t1_h10.pkl,1,10,rth,359364,xgb,1000,0.03,6,data_orderflow/orderflow_compact_t1.0_h10.csv,2025-08-21 20:42:02,tuned v1
+xgb_of_t4_h20.pkl,4,20,rth,359364,xgb,1000,0.03,6,data_orderflow/orderflow_compact_t4.0_h20.csv,2025-08-21 20:42:02,tuned v1
+xgb_of_t8_h45.pkl,8,45,rth,359364,xgb,1000,0.03,6,data_orderflow/orderflow_compact_t8.0_h45.csv,2025-08-21 20:42:02,tuned v1
