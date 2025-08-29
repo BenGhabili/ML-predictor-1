@@ -88,6 +88,8 @@ def predict_knn():
         
         # Enhanced response
         return jsonify({
+            "bar_number": data["bar_number"],
+            "bar_time": data["bar_time"],
             "prediction": result["prediction"],
             "direction": ["range", "up", "down"][result["prediction"]],
             "probabilities": {

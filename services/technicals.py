@@ -45,8 +45,28 @@ def add_label_3class(df_bars: pd.DataFrame,
     Adds a label column based on next‑bar move vs ATR.
     """
     future_ret = df_bars["Close"].shift(-1) - df_bars["Close"]
-    up   =  future_ret >=  atr_mult * df_bars[atr_col]
-    down =  future_ret <= -atr_mult * df_bars[atr_col]
+
+    #  NEW ADDED WILL SEE IF I WANT TO KEEP IT
+    thresh = (df_bars[atr_col] * atr_mult) / df_bars["Close"]  # As % of price
+
+    # ▼▼▼ ADD THESE DEBUG PRINTS ▼▼▼
+    print("\n=== DEBUGGING LABELS ===")
+    print(f"ATR stats (points): Min={df_bars[atr_col].min():.2f} | Median={df_bars[atr_col].median():.2f} | Max={df_bars[atr_col].max():.2f}")
+    print(f"Price stats: Last Close={df_bars['Close'].iloc[-1]:.1f} | Sample ATR%={(df_bars[atr_col].median()/df_bars['Close'].median())*100:.4f}%")
+    print(f"Threshold stats (%): Min={thresh.min()*100:.6f}% | Median={thresh.median()*100:.6f}% | Max={thresh.max()*100:.6f}%")
+    print(f"Future return stats (%): Min={future_ret.min()/df_bars['Close'].min()*100:.6f}% | Median={future_ret.median()/df_bars['Close'].median()*100:.6f}% | Max={future_ret.max()/df_bars['Close'].max()*100:.6f}%")
+
+    up = future_ret >= thresh
+    down = future_ret <= -thresh
+
+    print(f"Label distribution: Up={up.sum()} | Down={down.sum()} | Flat={len(df_bars)-up.sum()-down.sum()}")
+    # ▲▲▲ END DEBUG PRINTS ▲▲▲
+    
+
+
+    # up   =  future_ret >=  atr_mult * df_bars[atr_col]
+    # down =  future_ret <= -atr_mult * df_bars[atr_col]
+    
     df_bars[target_col] = np.select([up, down], [2, 1], default=0).astype(int)
     df_bars["future_ret"] = future_ret   # optional keep for inspection
     return df_bars

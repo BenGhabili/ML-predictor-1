@@ -19,6 +19,10 @@ lib64/
 parts/
 sdist/
 var/
+.venv/
+data_orderflow/
+!data_orderflow/manifest.csv
+!data_orderflow/.gitkeep
 *.egg-info/
 .installed.cfg
 *.egg
@@ -61,7 +65,10 @@ coverage.xml
 
 # Data and model artifacts (if you don't want to commit large files)
 data/
+data_raw/
 models/
+!models/orderflow-models.csv
+!models/.gitkeep
 *.pkl
 *.h5
 *.pt
