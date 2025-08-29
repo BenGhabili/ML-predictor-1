@@ -36,12 +36,12 @@ Spread, last_minus_mid, aggressor, signed_size, cdelta_50, cdelta_100, ti_count_
 - Warm-up returns `{warmup:true}`; bad quotes/spread return zeros.
 
 ### Invoke tasks (orderflow)
-- `invoke of-api --model models/xgb_of_t1_h10.pkl --port 8000`
+- `invoke of-api --model models/xgb_of_t1_h10.pkl`
 - `invoke of-prep --input data_raw/NQ_06-25_tick.txt --session-filter rth --max-rows 500000 --targets 1,4,8 --horizons 10,20,45`
 - `invoke of-train --input data_orderflow/orderflow_compact_t1.0_h10.csv --algo xgb --cv walk [--save]`
 - Mock/replay:
   - `invoke of-gen --seconds 60 --bps 40 --trend up --out data/mock_ticks.jsonl`
-  - `curl -X POST http://127.0.0.1:8000/reset`
+  - `curl -X POST http://127.0.0.1:8001/reset`
   - `invoke of-replay --input data/mock_ticks.jsonl --threshold 0.20 --log data/replay_log.csv`
 
 ### Latency sanity (replay)
