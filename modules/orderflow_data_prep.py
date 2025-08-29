@@ -5,7 +5,7 @@ import argparse
 import pandas as pd
 
 from services.orderflow_config import load_config
-from services.orderflow_data_utils import load_orderflow_ticks
+from services.orderflow_data_utils import load_orderflow_ticks, _infer_symbol_and_contract_from_filename
 from services.orderflow_features import build_orderflow_features, select_compact_features
 from services.orderflow_labels import make_labels_multi
 from services.orderflow_sessions import filter_session
@@ -64,10 +64,42 @@ def main(*, input_path: Path, out_dir: Path = Path("data_orderflow"), overrides:
         spread_cap_ticks=labels_cfg.get("spread_cap_ticks", 8),
     )
 
+    # Determine symbol/contract tags for filenames
+    sym_tag = None
+    contract_tag = None
+
+    try:
+        if "symbol_root" in df_feat.columns:
+            s = df_feat["symbol_root"].dropna()
+            if len(s) > 0:
+                sym_tag = str(s.iloc[0]).lower()
+        if "contract" in df_feat.columns:
+            c = df_feat["contract"].dropna()
+            if len(c) > 0:
+                contract_tag = str(c.iloc[0]).lower()
+    except Exception:
+        pass
+
+    if sym_tag is None or contract_tag is None:
+        try:
+            sym_i, con_i = _infer_symbol_and_contract_from_filename(input_path)
+            if sym_tag is None and sym_i:
+                sym_tag = sym_i.lower()
+            if contract_tag is None and con_i:
+                contract_tag = con_i.lower()
+        except Exception:
+            pass
+
+    sym_tag = sym_tag or "na"
+    contract_tag = contract_tag or "na"
+
     # Emit per (target,horizon) compact CSV
     compact = select_compact_features(df_feat)
     ensure_dir(out_dir)
     manifest_rows = []
+
+    from datetime import datetime
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     for (target_net, H), y in labels.items():
         # Always use 'label3' to match trainer expectations
@@ -79,7 +111,7 @@ def main(*, input_path: Path, out_dir: Path = Path("data_orderflow"), overrides:
             print(out_df.head())
             continue
 
-        fname = f"orderflow_compact_t{target_net}_h{H}.csv"
+        fname = f"orderflow_compact_{sym_tag}_{contract_tag}_t{target_net}_h{H}_{ts}.csv"
         fpath = out_dir / fname
         out_df.to_csv(fpath, index=False)
         manifest_rows.append({
@@ -87,6 +119,8 @@ def main(*, input_path: Path, out_dir: Path = Path("data_orderflow"), overrides:
             "target_net_ticks": target_net,
             "horizon_s": H,
             "rows": len(out_df),
+            "symbol": sym_tag,
+            "contract": contract_tag,
         })
         print(f"Wrote {fpath}")
 
