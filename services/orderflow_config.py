@@ -52,9 +52,11 @@ def load_config(yaml_path: str | Path | None = None, overrides: dict | None = No
         if p.exists():
             with p.open() as fh:
                 try:
-                    data = yaml.safe_load(fh) or {}
+                    raw = yaml.safe_load(fh) or {}
                 except Exception:
-                    data = {}
+                    raw = {}
+            # prefer the dedicated orderflow sub-key, fall back to top-level
+            data = raw.get("orderflow", raw)
     _deep_update(cfg, data)
     _deep_update(cfg, overrides or {})
     return cfg

@@ -66,8 +66,8 @@ def add_price_position_features(df: pd.DataFrame) -> pd.DataFrame:
 def add_time_based_returns_and_vol(df: pd.DataFrame) -> pd.DataFrame:
     # time-based windows using index; assumes DatetimeIndex with tz
     df = df.copy()
-    df["last_lag_1s"] = df["Last"].rolling("1s").apply(lambda x: x.iloc[0], raw=False)
-    df["last_lag_2s"] = df["Last"].rolling("2s").apply(lambda x: x.iloc[0], raw=False)
+    df["last_lag_1s"] = df["Last"].rolling("1s").apply(lambda x: x[0], raw=True)
+    df["last_lag_2s"] = df["Last"].rolling("2s").apply(lambda x: x[0], raw=True)
 
     df["ret_1s"] = df["Last"] - df["last_lag_1s"]
     df["ret_2s"] = df["Last"] - df["last_lag_2s"]

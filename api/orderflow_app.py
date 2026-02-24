@@ -1,6 +1,7 @@
 # api/orderflow_app.py
 from __future__ import annotations
 import os
+from contextlib import asynccontextmanager
 from typing import Optional
 
 import numpy as np
@@ -14,8 +15,8 @@ from services.orderflow_features import OF_FEATURE_ORDER
 
 
 class Tick(BaseModel):
-    symbol: str = Field(..., examples=["NQ"]) 
-    contract: Optional[str] = Field(None, examples=["12-25"]) 
+    symbol: str = Field(..., examples=["NQ"])
+    contract: Optional[str] = Field(None, examples=["12-25"])
     ts_utc: int = Field(..., description="ms since epoch (UTC)")
     last: float
     bid: float
@@ -23,19 +24,16 @@ class Tick(BaseModel):
     size: float = 1
 
 
-app = FastAPI(title="Orderflow Predictor", version="0.21")
-
 MODEL = None
 STATE = None
 CFG: Optional[FeatureStateConfig] = None
 
 
-@app.on_event("startup")
-def startup_event():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     global MODEL, STATE, CFG
     model_path = os.environ.get("ORDERFLOW_MODEL_PATH")
     if not model_path:
-        # Allow alternative env var name for convenience
         model_path = os.environ.get("OF_MODEL")
     if not model_path or not os.path.exists(model_path):
         raise RuntimeError("ORDERFLOW_MODEL_PATH not set or file not found")
@@ -48,6 +46,10 @@ def startup_event():
         tick_size_map={"NQ": 0.25, "ES": 0.25},
     )
     STATE = FeatureState(CFG)
+    yield
+
+
+app = FastAPI(title="Orderflow Predictor", version="0.21", lifespan=lifespan)
 
 
 @app.get("/ping")
@@ -91,4 +93,3 @@ def predict(tick: Tick, threshold: Optional[float] = Query(None)):
         return resp
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
-

@@ -58,6 +58,28 @@ promotion_gate:
   latency_ms_max: 100          # target 10–20ms; 100ms hard ceiling
   ks_p_threshold: 0.05
 
+orderflow:
+  general:
+    symbol: NQ
+    tz_exchange: America/Chicago
+  sessions:
+    session_filter: all
+    rth_hours: "08:30-15:00"
+    london_hours: "02:00-11:00"
+    tz_london: Europe/London
+  costs:
+    tick_size: 0.25
+    tick_value_usd: 5.0
+    fees_roundtrip_usd: 4.5
+    slippage_ticks_per_side: 0.75
+  delays:
+    entry_delay_ms: 200
+    exit_delay_ms: 100
+  labels:
+    targets_net_ticks: [1, 4, 8, 12, 20]
+    horizons_s: [5, 10, 30, 45, 90]
+    spread_cap_ticks: 8
+
 live:
   risk:
     max_daily_loss_usd: 200    # set per account tolerance

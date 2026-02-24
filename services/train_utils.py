@@ -21,19 +21,6 @@ from services.model_defaults import RF, XGB, KNN
 
 
 # ────────────────────────────────────────────────────────────
-def load_processed_cs2v(csv_path: Path):
-    """Read processed_data_* CSV and split into X, y."""
-    df = pd.read_csv(csv_path)
-    print("Label distribution:\n", df['label3'].value_counts())
-
-    print(df.groupby('label3').mean())
-
-    # --- engineered features are already present ---
-    X = df[['feature1', 'feature2', 'feature3']].values
-    y = df['label3'].values                # 2 / 1 / 0
-
-    return X, y
-
 def load_processed_csv(csv_path: Path):
     df = pd.read_csv(csv_path)
 
@@ -133,34 +120,11 @@ def build_xgb_model(X, y, *,
     else:
         clf.fit(X_bal, y_bal, verbose=explain)
 
-
-
     if explain:
         from services.explain import generate_visualizations
         generate_visualizations(clf, X_bal, y_bal)
 
     return clf
-
-def train_rf_model(X, y, n_trees=400):
-    """
-    Random Forest with class_weight='balanced' so the minority
-    classes (1 = down, 2 = up) get extra attention.
-    """
-    X_tr, X_te, y_tr, y_te = train_test_split(
-        X, y, test_size=0.25, random_state=42, stratify=y
-    )
-
-    clf = RandomForestClassifier(
-            n_estimators=n_trees,
-            max_depth=None,
-            class_weight='balanced',
-            random_state=42,
-            n_jobs=-1)
-    clf.fit(X_tr, y_tr)
-    print("Trained model type:", clf.__class__.__name__)
-
-    report = classification_report(y_te, clf.predict(X_te), digits=3)
-    return clf, report
 
 # ────────────────────────────────────────────────────────────
 def train_knn_model(X: np.ndarray,
@@ -177,44 +141,6 @@ def train_knn_model(X: np.ndarray,
     report = classification_report(y_te, clf.predict(X_te), digits=3)
     return clf, report
 
-# ──────────────────────────────────────────────────────────
-def train_xgb_model_over_sampled(
-        X, y,
-        n_estimators: int = 500,
-        learning_rate: float = 0.05,
-        max_depth: int = 6,
-        k_neighbors: int = 5):
-    """
-    1. SMOTE-balance the three classes
-    2. Train a multi-class XGBoost model
-    3. Return (clf, classification_report)
-    """
-    sm = SMOTE(random_state=42, k_neighbors=k_neighbors)
-    X_bal, y_bal = sm.fit_resample(X, y)
-
-    X_tr, X_te, y_tr, y_te = train_test_split(
-        X_bal, y_bal, test_size=0.25,
-        random_state=42, stratify=y_bal)
-
-    clf = XGBClassifier(
-        objective="multi:softprob",          # 3-class softmax
-        num_class=3,
-        eval_metric="mlogloss",
-        n_estimators=n_estimators,
-        learning_rate=learning_rate,
-        max_depth=max_depth,
-        subsample=0.8,
-        colsample_bytree=0.8,
-        random_state=42,
-        n_jobs=-1,
-    )
-    clf.fit(X_tr, y_tr)
-
-    report = classification_report(
-        y_te, clf.predict(X_te), digits=3, zero_division=0)
-
-    return clf, report
-
 # ────────────────────────────────────────────────────────────
 def save_model(clf,
                timeframe_min: int,
@@ -225,14 +151,13 @@ def save_model(clf,
     """
     model_dir.mkdir(exist_ok=True)
     ts = datetime.now().strftime("%d-%m-%y-%H%M%S")
-    # prefix = "rf" if clf.__class__.__name__.startswith("RandomForestClassifie") else "knn"
 
     prefix = (
         "xgb" if clf.__class__.__name__.startswith("XGB")
         else "rf" if clf.__class__.__name__.startswith("RandomForest")
         else "knn"
     )
-    
+
     fname = f"{prefix}_{timeframe_min}min_label3_{ts}.pkl"
     out_pkl = model_dir / fname
     dump(clf, out_pkl)

@@ -11,7 +11,7 @@ def set_model(model):
     global _model
     _model = model
 
-def predict_from_raw_data(raw_data):
+def predict_from_raw_data(raw_data, model=None):
     """
     Given raw_data of the form:
       {
@@ -21,10 +21,16 @@ def predict_from_raw_data(raw_data):
           "Low":   [...]
         }
       }
-    Computes features and returns a 0/1 prediction.    
+    Computes features and returns a 0/1 prediction.
     Raises ValueError if the input arrays are too short.
+
+    Parameters
+    ----------
+    model : optional sklearn-compatible estimator.  When supplied the
+            global ``_model`` is ignored (thread-safe path).
     """
-    if _model is None:
+    mdl = model if model is not None else _model
+    if mdl is None:
         raise ValueError("No model is loaded. Please set the model first using set_model().")
 
     history = raw_data.get("history", {})
@@ -46,24 +52,19 @@ def predict_from_raw_data(raw_data):
     # Construct a 2D array for scikit‑learn
     X = np.array([[f1, f2, f3]])
 
-   # Debug: Check if model supports probabilities
-    if not hasattr(_model, "predict_proba"):
-        print("WARNING: Model doesn't support predict_proba()")
+    if not hasattr(mdl, "predict_proba"):
         return {
-            "prediction": int(_model.predict(X)[0]),
+            "prediction": int(mdl.predict(X)[0]),
             "probs": None,
             "warning": "Model doesn't support confidence scores"
         }
-    
+
     try:
-        proba = _model.predict_proba(X)[0].tolist()
-        print(f"Probabilities: {proba}")  # Debug output
-    except Exception as e:
-        print(f"Probability calculation failed: {str(e)}")
+        proba = mdl.predict_proba(X)[0].tolist()
+    except Exception:
         proba = None
 
     return {
-        "prediction": int(_model.predict(X)[0]),
+        "prediction": int(mdl.predict(X)[0]),
         "probs": proba,
-        "model_type": _model.__class__.__name__  # Debug info
     }

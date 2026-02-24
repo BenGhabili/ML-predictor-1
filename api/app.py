@@ -76,31 +76,32 @@ def predict_knn():
                 'message': f'No model loaded for {timeframe}min timeframe'
             }), 404
         
-        # 3) Set model and predict (thread-safe)
-        set_model(loaded_models[timeframe])
+        # 3) Predict (pass model directly for thread safety)
+        wrapped = {"history": history}
+        result = predict_from_raw_data(wrapped, model=loaded_models[timeframe])
 
-         # 4) Call your helper—but it expects the full dict with the "history" key,
-        #    so wrap it back into that shape:
-        wrapped = { "history": history }
-        result = predict_from_raw_data(wrapped)
-
-        # prediction = predict_from_raw_data(raw_data)
-        
-        # Enhanced response
-        return jsonify({
-            "bar_number": data["bar_number"],
-            "bar_time": data["bar_time"],
+        # label mapping: 0=flat/range, 1=down, 2=up
+        response = {
             "prediction": result["prediction"],
-            "direction": ["range", "up", "down"][result["prediction"]],
-            "probabilities": {
-                "range": result["probs"][0],
-                "up": result["probs"][1],
-                "down": result["probs"][2]
-            },
-            "confidence": max(result["probs"]),
+            "direction": ["range", "down", "up"][result["prediction"]],
             "timeframe": timeframe,
-            "timestamp": datetime.now().isoformat()
-        }), 200
+            "timestamp": datetime.now().isoformat(),
+        }
+
+        if data.get("bar_number") is not None:
+            response["bar_number"] = data["bar_number"]
+        if data.get("bar_time") is not None:
+            response["bar_time"] = data["bar_time"]
+
+        if result["probs"] is not None:
+            response["probabilities"] = {
+                "range": result["probs"][0],
+                "down": result["probs"][1],
+                "up": result["probs"][2],
+            }
+            response["confidence"] = max(result["probs"])
+
+        return jsonify(response), 200
         
     except ValueError as e:
         return jsonify({'error': 'Invalid data', 'message': str(e)}), 400

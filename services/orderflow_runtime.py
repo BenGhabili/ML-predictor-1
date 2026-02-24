@@ -27,13 +27,12 @@ class FeatureState:
         self._tz = ZoneInfo(cfg.tz_exchange)
 
     def _prune_time(self, now_ms: int) -> None:
-        # keep ~2s for vol_2s and 60s for spread_z_60s; and 1s for ret_1s
+        # keep ~2s for vol_2s + ret_1s, 60s for spread_z_60s
         cutoff_60s = now_ms - 60_000
         cutoff_2s = now_ms - 2_000
-        cutoff_1s = now_ms - 1_000
         while self._deque_spread and self._deque_spread[0][0] < cutoff_60s:
             self._deque_spread.popleft()
-        while self._deque_last and self._deque_last[0][0] < cutoff_1s:
+        while self._deque_last and self._deque_last[0][0] < cutoff_2s:
             self._deque_last.popleft()
         # ticks deque used for trade counts in 500ms window
         cutoff_500 = now_ms - 500
@@ -85,7 +84,7 @@ class FeatureState:
         trades_per_500ms = float(len(self._deque_ticks))
 
         # ret_1s: compare to price ~1s ago
-        if len(self._deque_last) == 0 or self._deque_last[0][0] > ts_ms - 500:
+        if len(self._deque_last) == 0 or self._deque_last[0][0] > ts_ms - 1000:
             ret_1s = 0.0
         else:
             # first element in deque is oldest within ~1s window edge

@@ -85,7 +85,7 @@ def ticks_to_bars(df_ticks: pd.DataFrame,
     Resample ticks to OHLCV bars, add ATR, 3‑class label, and
     toy features (feature1/2/3).  Returns ready‑to‑save DataFrame.
     """
-    rule = f"{timeframe_min}T"
+    rule = f"{timeframe_min}min"
     bars = df_ticks.resample(rule).agg({
         "Open": "first",
         "High": "max",
@@ -143,73 +143,6 @@ def write_csv_and_log(bars: pd.DataFrame,
         wr.writerow([fname, f"{timeframe_min}min", atr_mult,
                      now.strftime("%d-%m-%y %H:%M:%S")])
     return out_path
-
-# ❷ Add ATR column + 3-class label (up / flat / down)
-def add_atr_labels(df: pd.DataFrame,
-                   atr_mult: float = 1.0,
-                   atr_period: int = 14,
-                   k_ahead: int = 1) -> pd.DataFrame:
-    """
-    Add Average True Range (ATR) and a 3-class label column.
-    Label: 1 = up, 0 = down, 2 = flat.
-    """
-    hi, lo, cl = df['high'], df['low'], df['close']
-
-    # --- True-Range as a Series -------------------------------------------
-    tr = pd.concat([
-        hi - lo,
-        (hi - cl.shift()).abs(),
-        (cl.shift() - lo).abs()
-    ], axis=1).max(axis=1)              # returns a pd.Series
-
-    df['atr'] = tr.rolling(atr_period).mean()
-
-    # --- Forward-return & label -------------------------------------------
-    fwd_ret = cl.pct_change(periods=k_ahead).shift(-k_ahead)
-    thresh  = (df['atr'] * atr_mult) / cl            # ATR → % move
-
-    df['label'] = np.select(
-        [fwd_ret >  thresh,
-         fwd_ret < -thresh],
-        [1, 0],                                     # up / down
-        default=2                                   # flat
-    )
-
-    return df.dropna()
-
-def engineer_bar_features2(df: pd.DataFrame,
-                          atr_period: int = 14,
-                          k_ahead: int = 1,
-                          atr_mult: float = 1.0) -> pd.DataFrame:
-    """
-    Takes a DataFrame with columns:
-        Datetime index + Open/High/Low/Close/Volume  (proper-case)
-    Adds:
-        ATR, label3 (up / down / flat), feature1–3
-    Returns a cleaned DataFrame ready for write_csv_and_log().
-    """
-
-    # --- ATR ---------------------------------------------------------------
-    df["ATR"] = ta.volatility.average_true_range(
-        high=df["High"], low=df["Low"], close=df["Close"], window=atr_period
-    )
-
-    # --- 3-class label -----------------------------------------------------
-    fwd_ret = df["Close"].pct_change(k_ahead).shift(-k_ahead)
-    thresh  = (df["ATR"] * atr_mult) / df["Close"]
-
-    df["label3"] = np.select(
-        [fwd_ret >  thresh, fwd_ret < -thresh],
-        [1,                  0],          # up / down
-        default=2                         # flat
-    )
-
-    # --- Example placeholder features (match tick version!) ---------------
-    df["feature1"] = df["Close"].pct_change()             # 1-bar return
-    df["feature2"] = df["Close"].pct_change(5)            # 5-bar return
-    df["feature3"] = df["Volume"].pct_change()            # volume delta
-
-    return df.dropna()
 
 def engineer_bar_features(
         df,
@@ -299,7 +232,7 @@ def resample_ohlcv(df: pd.DataFrame, freq_min: int) -> pd.DataFrame:
     -------
     DataFrame resampled to freq_min with standard OHLCV aggregation.
     """
-    rule = f"{freq_min}T"                         # 'T' = minute offset alias
+    rule = f"{freq_min}min"
     return (
         df.resample(rule)
         .agg({"Open": "first",
