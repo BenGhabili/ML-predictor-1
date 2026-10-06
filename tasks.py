@@ -9,7 +9,7 @@ RAW_DIR = Path("data_raw")
 
 @task
 def data(ctx):
-    ctx.run("python modules/data_preparation.py")
+    ctx.run("python modules/data_preparation_x_min.py --raw-file data_raw/ --timeframe 1 --atr-mult 1.0")
 
 @task
 def prepare_minute_data(ctx, timeframe=1, atr=1.0):
@@ -121,7 +121,7 @@ def api(ctx):
 # ---------------- Orderflow (v0.2) tasks -----------------
 
 @task
-def of_prep(ctx, input, out_dir="data_orderflow", max_rows=None, targets="1,4,8,12,20", horizons="5,10,30,45,90", session_filter=None, tz_exchange=None, rth_hours=None, london_hours=None, no_save=False):
+def of_prep(ctx, input, out_dir="data_orderflow", max_rows=None, targets="1,4,8,12,20", horizons="5,10,30,45,90", session_filter=None, tz_exchange=None, rth_hours=None, london_hours=None, tick_value_usd=None, fees_roundtrip=None, slippage_ticks=None, no_save=False):
     """Orderflow data prep: emit compact CSVs per (target,horizon)."""
     args = ["-m", "modules.orderflow_data_prep", "--input", quote(str(input)), "--out-dir", quote(str(out_dir))]
     if max_rows is not None:
@@ -138,6 +138,12 @@ def of_prep(ctx, input, out_dir="data_orderflow", max_rows=None, targets="1,4,8,
         args += ["--targets_net_ticks", targets]
     if horizons:
         args += ["--horizons_s", horizons]
+    if tick_value_usd is not None:
+        args += ["--tick-value-usd", str(tick_value_usd)]
+    if fees_roundtrip is not None:
+        args += ["--fees-roundtrip", str(fees_roundtrip)]
+    if slippage_ticks is not None:
+        args += ["--slippage-ticks", str(slippage_ticks)]
     if no_save:
         args += ["--no-save"]
     cmd = "python " + " ".join(args)
@@ -160,6 +166,45 @@ def of_api(ctx, host="127.0.0.1", port=8001, model="models/xgb_of_t1_h10.pkl"):
     cmd = f"{sys.executable} -m uvicorn api.orderflow_app:app --host {host} --port {port} --workers 1"
     # Cross-platform: pass model path via env rather than inline assignment
     ctx.run(cmd, env={"ORDERFLOW_MODEL_PATH": str(model)})
+
+@task
+def of_sweep(ctx, data_dir="data_orderflow", algo="xgb", cv="walk",
+             trees=800, depth=7, eta=0.03, symbol="NQ", save_models=False,
+             max_rows=None):
+    """Sweep all (target, horizon) combos and rank by profitability."""
+    save_flag = "--save-models" if save_models else ""
+    rows_flag = f"--max-rows {max_rows}" if max_rows else ""
+    cmd = (f"python -m modules.orderflow_sweep "
+           f"--data-dir {data_dir} --algo {algo} --cv {cv} "
+           f"--trees {trees} --depth {depth} --eta {eta} "
+           f"--symbol {symbol} {save_flag} {rows_flag}")
+    ctx.run(cmd)
+
+# ---------------- L2 (depth) tasks -----------------
+
+@task
+def l2_prep(ctx, input_dir=None, from_cache=None, out_dir="data_l2",
+            targets="2,4,8", horizons="10,20,30", symbol="NQ",
+            session_filter="08:30-15:00", bar_size=0, grid=False):
+    """L2 data prep: parse depth data or use cache → compact feature CSVs."""
+    parts = ["python -m modules.l2_data_prep"]
+    if from_cache:
+        parts += [f"--from-cache {quote(str(from_cache))}"]
+    elif input_dir:
+        parts += [f"--input-dir {quote(str(input_dir))}"]
+    else:
+        raise ValueError("Must specify --input-dir or --from-cache")
+    parts += [f"--out-dir {quote(str(out_dir))}"]
+    parts += [f"--targets {targets}", f"--horizons {horizons}"]
+    parts += [f"--symbol {symbol}"]
+    if session_filter:
+        parts += [f"--session-filter {session_filter}"]
+    if bar_size > 0:
+        parts += [f"--bar-size {bar_size}"]
+    if grid:
+        parts += ["--grid"]
+    ctx.run(" ".join(parts))
+
 
 @task
 def of_gen(ctx, seconds=60, base=17650.0, bps=40, trend='up', spread=0.5, out='data/mock_ticks.jsonl', symbol='NQ', contract='12-25'):

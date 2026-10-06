@@ -94,7 +94,8 @@ def _pair_targets_horizons(targets_net_ticks: list, horizons_s: list) -> list[tu
         return [(targets_net_ticks[0], H) for H in horizons_s]
     if len(horizons_s) == 1:
         return [(t, horizons_s[0]) for t in targets_net_ticks]
-    raise ValueError("targets_net_ticks and horizons_s lengths are incompatible")
+    # Different lengths, both > 1: full grid (cross product)
+    return [(t, H) for t in targets_net_ticks for H in horizons_s]
 
 
 def make_labels_multi(

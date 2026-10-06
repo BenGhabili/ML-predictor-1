@@ -12,68 +12,41 @@ import pandas as pd
 import ta
 from services.technicals import add_atr, add_label_3class, true_range
 from services.features import FEATURE_REGISTRY
+from services.nt8_loader import (
+    detect_data_type,
+    load_bars as _load_bars_np,
+    _read_ticks,
+)
 
 
 # ──────────────────────────────────────────────────────────
 def load_nt8_ticks(raw_file: Path) -> pd.DataFrame:
-    """
-    Parse the NT8 text export into a tick‑level DataFrame:
-    columns = Datetime, Open, High, Low, Close, Volume
-    """
-    rows, line_cnt = [], 0
-    with raw_file.open() as fh:
-        for line in fh:
-            line_cnt += 1
-            line = line.strip()
-            if not line:  # skip blanks
-                continue
-
-            parts = line.split(';')
-            if len(parts) < 4:
-                continue  # malformed
-
-            # split first token into date time volume
-            head = parts[0].split()
-            if len(head) < 2:  # bad header
-                continue
-            date_str, time_str = head[:2]
-            vol_str = head[2] if len(head) >= 3 else "0"
-
-            try:
-                dt = pd.to_datetime(f"{date_str} {time_str}",
-                                    format="%Y%m%d %H%M%S")
-                op, lo, cl = map(float, parts[1:4])
-                hi = max(op, lo, cl)
-                vol = int(vol_str)
-            except Exception as exc:
-                sys.stdout.write(f"\nParse error @ line {line_cnt}: {exc}\n")
-                continue
-
-            rows.append((dt, op, hi, lo, cl, vol))
-            if line_cnt % 1000 == 0:
-                sys.stdout.write(f"Parsed {line_cnt} lines...\r")
-
-    sys.stdout.write(f"\nFinished. Total lines: {line_cnt}\n")
-    if not rows:
+    """Parse NT8 tick export into a tick-level DataFrame (Last, Volume)."""
+    dts, prices, volumes = _read_ticks(str(raw_file))
+    if not dts:
         raise ValueError("No valid rows parsed.")
-    df = pd.DataFrame(rows,
-                      columns=["Datetime", "Open", "High", "Low", "Close", "Volume"])
-    df.sort_values("Datetime", inplace=True)
-    df.set_index("Datetime", inplace=True)
+    df = pd.DataFrame(
+        {"Last": prices, "Volume": volumes},
+        index=pd.DatetimeIndex(dts, name="Datetime"),
+    )
+    df.sort_index(inplace=True)
     return df
 
 
-# ❶ Load NT8-style bar file (DATE TIME;O;H;L;C;V)
 def load_nt8_bars(path: Path) -> pd.DataFrame:
-    df = pd.read_csv(
-        path,
-        sep=';',
-        header=None,
-        names=['date_time', 'open', 'high', 'low', 'close', 'volume'],
-        engine='python'
+    """Load NT8-style bar file (DATE TIME;O;H;L;C;V) → DataFrame."""
+    bars = _load_bars_np(str(path))
+    df = pd.DataFrame(
+        {
+            "Open": bars["open"],
+            "High": bars["high"],
+            "Low": bars["low"],
+            "Close": bars["close"],
+            "Volume": bars["volume"],
+        },
+        index=pd.DatetimeIndex(bars["dt"], name="Datetime"),
     )
-    df['time'] = pd.to_datetime(df['date_time'], format='%Y%m%d %H%M%S')
-    return df.drop(columns='date_time').set_index('time')
+    return df
 
 
 # ──────────────────────────────────────────────────────────
@@ -87,12 +60,10 @@ def ticks_to_bars(df_ticks: pd.DataFrame,
     """
     rule = f"{timeframe_min}min"
     bars = df_ticks.resample(rule).agg({
-        "Open": "first",
-        "High": "max",
-        "Low": "min",
-        "Close": "last",
-        "Volume": "sum"
+        "Last": ["first", "max", "min", "last"],
+        "Volume": "sum",
     }).dropna()
+    bars.columns = ["Open", "High", "Low", "Close", "Volume"]
 
     # indicators + label
     bars = add_atr(bars, period=atr_period, col_name="ATR")
@@ -171,11 +142,12 @@ def engineer_bar_features(
     pct_fwd = out["Close"].pct_change(k_ahead).shift(-k_ahead)
     thr = (out["ATR"] * atr_mult) / out["Close"]  # Threshold as % of price
 
-    # 3. Generate labels
+    # 3. Generate labels — encoding: 0=flat, 1=down, 2=up
+    #    (must match technicals.add_label_3class and api/app.py mapping)
     out["label3"] = np.select(
-        [pct_fwd > thr, pct_fwd < -thr],
-        [1, 0],  # 1=up, 0=down
-        default=2  # 2=flat
+        [pct_fwd >= thr, pct_fwd <= -thr],
+        [2, 1],  # 2=up, 1=down
+        default=0  # 0=flat
     )
 
     # ---------- Debug Output ----------------------------------------

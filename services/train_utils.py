@@ -13,7 +13,6 @@ from joblib import dump
 
 from sklearn.model_selection import train_test_split
 from sklearn.neighbors import KNeighborsClassifier          # swap later
-from sklearn.metrics import classification_report
 from imblearn.over_sampling import SMOTE
 from sklearn.ensemble import RandomForestClassifier
 from xgboost import XGBClassifier
@@ -45,35 +44,23 @@ def train_rf_model_over_sampled(X, y,
                                 n_trees=RF["TREES"],
                                 k_neighbors=5):
     """
-    1. Over‑sample minority classes with SMOTE
-    2. Train RandomForest on the balanced data
-    3. Return (clf, classification_report_string)
-    """
-    """
-    If the training subset has ≥2 classes → SMOTE-balance then fit RF
-    else → skip SMOTE and fit RF with class_weight='balanced'.
+    SMOTE-balance then fit RandomForest on the full data provided.
+    The caller (CV loop) is responsible for train/test splitting.
+    Returns (clf, None).
     """
     if len(np.unique(y)) >= 2:
         sm = SMOTE(random_state=42, k_neighbors=k_neighbors)
         X_bal, y_bal = sm.fit_resample(X, y)
     else:
-        # keep data as-is; class_weight will handle the imbalance
         X_bal, y_bal = X, y
 
-    # 2 Train / test split
-    X_tr, X_te, y_tr, y_te = train_test_split(
-        X_bal, y_bal, test_size=0.25, random_state=42, stratify=y_bal)
-
-    # 3️ Random‑Forest (no class_weight, data already balanced)
     clf = RandomForestClassifier(
             n_estimators=n_trees,
             random_state=42,
             n_jobs=-1)
-    clf.fit(X_tr, y_tr)
+    clf.fit(X_bal, y_bal)
 
-    report = classification_report(
-        y_te, clf.predict(X_te), digits=3, zero_division=0)
-    return clf, report
+    return clf, None
 
 # ────────────────────────────────────────────────────────────
 
@@ -88,37 +75,47 @@ def build_xgb_model(X, y, *,
     """
     1. SMOTE-balance the classes.
     2. Build an XGBClassifier with supplied hyper-params.
-    3. If X_val/y_val given → fit with early stopping,
-       else just fit on the balanced data.
+    3. If X_val/y_val given → create an internal holdout from the
+       SMOTE'd training data for early stopping (avoids using the
+       CV test fold for tuning, which would inflate metrics).
     4. Return the *fitted* model.
     """
 
     X_bal, y_bal = SMOTE(random_state=42).fit_resample(X, y)
 
-    # 2. Configure model
+    # Use early stopping only when we have enough data
+    use_early_stop = X_val is not None and len(X_bal) >= 100
+
+    if use_early_stop:
+        # Split off 15% of the SMOTE'd training data for early stopping
+        X_fit, X_es, y_fit, y_es = train_test_split(
+            X_bal, y_bal, test_size=0.15, random_state=42, stratify=y_bal)
+    else:
+        X_fit, y_fit = X_bal, y_bal
+        X_es, y_es = None, None
+
     clf = XGBClassifier(
         objective="multi:softprob",
         num_class=3,
         n_estimators=n_estimators,
         learning_rate=learning_rate,
         max_depth=max_depth,
-        subsample=0.8,           # Recommended for financial data
-        colsample_bytree=0.8,    # Helps prevent overfitting
-        eval_metric=["mlogloss", "merror"],  # Multi-class metrics
-        early_stopping_rounds=early_stop_rounds if X_val is not None else None,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        eval_metric=["mlogloss", "merror"],
+        early_stopping_rounds=early_stop_rounds if use_early_stop else None,
         random_state=42,
-        enable_categorical=False  # Critical for numerical data
+        enable_categorical=False,
     )
 
-    # --- Training ---
-    if X_val is not None and y_val is not None:
+    if use_early_stop:
         clf.fit(
-            X_bal, y_bal,
-            eval_set=[(X_val, y_val)],
-            verbose=explain  # Only show if explain=True
+            X_fit, y_fit,
+            eval_set=[(X_es, y_es)],
+            verbose=explain,
         )
     else:
-        clf.fit(X_bal, y_bal, verbose=explain)
+        clf.fit(X_fit, y_fit, verbose=explain)
 
     if explain:
         from services.explain import generate_visualizations
@@ -130,16 +127,13 @@ def build_xgb_model(X, y, *,
 def train_knn_model(X: np.ndarray,
                     y: np.ndarray,
                     n_neighbors=KNN["K"]):
-    """Train KNN, return fitted estimator and a performance report."""
-    X_tr, X_te, y_tr, y_te = train_test_split(
-        X, y, test_size=0.25, random_state=42, stratify=y
-    )
-
+    """Train KNN on the full data provided.
+    The caller (CV loop) is responsible for train/test splitting.
+    Returns (clf, None)."""
     clf = KNeighborsClassifier(n_neighbors=n_neighbors)
-    clf.fit(X_tr, y_tr)
+    clf.fit(X, y)
 
-    report = classification_report(y_te, clf.predict(X_te), digits=3)
-    return clf, report
+    return clf, None
 
 # ────────────────────────────────────────────────────────────
 def save_model(clf,

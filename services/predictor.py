@@ -1,15 +1,6 @@
 import numpy as np
 from services.feature_helpers import compute_features
 
-# Global variable to store the model.
-_model = None
-
-def set_model(model):
-    """
-    Sets the model to be used for prediction.
-    """
-    global _model
-    _model = model
 
 def predict_from_raw_data(raw_data, model=None):
     """
@@ -21,17 +12,15 @@ def predict_from_raw_data(raw_data, model=None):
           "Low":   [...]
         }
       }
-    Computes features and returns a 0/1 prediction.
+    Computes features and returns a prediction dict.
     Raises ValueError if the input arrays are too short.
 
     Parameters
     ----------
-    model : optional sklearn-compatible estimator.  When supplied the
-            global ``_model`` is ignored (thread-safe path).
+    model : sklearn-compatible estimator (required).
     """
-    mdl = model if model is not None else _model
-    if mdl is None:
-        raise ValueError("No model is loaded. Please set the model first using set_model().")
+    if model is None:
+        raise ValueError("No model provided.")
 
     history = raw_data.get("history", {})
     closes = history.get("Close", [])
@@ -52,19 +41,19 @@ def predict_from_raw_data(raw_data, model=None):
     # Construct a 2D array for scikit‑learn
     X = np.array([[f1, f2, f3]])
 
-    if not hasattr(mdl, "predict_proba"):
+    if not hasattr(model, "predict_proba"):
         return {
-            "prediction": int(mdl.predict(X)[0]),
+            "prediction": int(model.predict(X)[0]),
             "probs": None,
             "warning": "Model doesn't support confidence scores"
         }
 
     try:
-        proba = mdl.predict_proba(X)[0].tolist()
+        proba = model.predict_proba(X)[0].tolist()
     except Exception:
         proba = None
 
     return {
-        "prediction": int(mdl.predict(X)[0]),
+        "prediction": int(model.predict(X)[0]),
         "probs": proba,
     }

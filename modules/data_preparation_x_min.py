@@ -8,8 +8,9 @@ from services.data_utils import (
     write_csv_and_log,
     load_nt8_bars,
     engineer_bar_features,
-    resample_ohlcv
+    resample_ohlcv,
 )
+from services.nt8_loader import detect_data_type
 
 def main(timeframe: int, atr_mult: float, raw_file: str, from_bars: bool, save: bool):
     root = Path(__file__).parent.parent
@@ -28,52 +29,40 @@ def main(timeframe: int, atr_mult: float, raw_file: str, from_bars: bool, save: 
 
     print(f"Using raw file: {file_path}")
 
-    # ── A) When the raw file is already fixed-interval OHLCV bars ──────────
+    # ── Auto-detect data type when --from-bars not explicitly set ───────
     if from_bars:
+        data_type = "time_bars"
+    else:
+        data_type = detect_data_type(str(file_path))
+        print(f"Auto-detected data type: {data_type}")
+
+    # ── A) When the raw file is already fixed-interval OHLCV bars ──────────
+    if data_type == "time_bars":
         print(f"Loading pre-aggregated bars from {file_path.name} …")
-        bars_df = load_nt8_bars(file_path)        # ← returns lower-case cols
-    
-        # 1) Rename to proper case so downstream code is identical
-        bars_df = bars_df.rename(columns={
-            "open":   "Open",
-            "high":   "High",
-            "low":    "Low",
-            "close":  "Close",
-            "volume": "Volume"
-        })
-    
-        # 2) Move the timestamp index into an explicit Datetime column
-        bars_df = (
-            bars_df
-            .reset_index()                 # 'time' column
-            .rename(columns={"time": "Datetime"})
-            .set_index("Datetime")
-        )
+        bars_df = load_nt8_bars(file_path)
 
         if timeframe > 1:
             print(f"Resampling 1-minute bars to {timeframe}-minute …")
             bars_df = resample_ohlcv(bars_df, timeframe)
 
-        # ── NEW: keep only London + NY core hours ─────────────────────────
-        # here the index is already DatetimeIndex
+        # ── Keep only London + NY core hours ─────────────────────────
         bars_df = bars_df.between_time("07:00", "20:30")
-        # ------------------------------------------------------------------
-        
-        # 3) Engineer ATR, label3, feature1-3
+
+        # Engineer ATR, label3, features
         print("Engineering features, ATR & labels …")
         bars_df = engineer_bar_features(
             bars_df,
             atr_period=14,
-            k_ahead=timeframe,      # horizon matches --timeframe flag
+            k_ahead=timeframe,
             atr_mult=atr_mult,
             debug=False
         )
-         
-    else:                   # ← When tick data provided
+
+    else:                   # ← tick data
         print(f"Loading raw ticks from {raw_file} …")
         ticks_df = load_nt8_ticks(file_path)
         print(f"Aggregating to {timeframe}-minute bars …")
-        bars_df = ticks_to_bars(ticks_df, timeframe_min=timeframe,atr_mult=atr_mult, atr_period=14)
+        bars_df = ticks_to_bars(ticks_df, timeframe_min=timeframe, atr_mult=atr_mult, atr_period=14)
 
     if save:
         write_csv_and_log(bars_df, timeframe, out_dir, log_csv, atr_mult)

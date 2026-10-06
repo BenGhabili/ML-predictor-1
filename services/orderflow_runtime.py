@@ -27,12 +27,13 @@ class FeatureState:
         self._tz = ZoneInfo(cfg.tz_exchange)
 
     def _prune_time(self, now_ms: int) -> None:
-        # keep ~2s for vol_2s + ret_1s, 60s for spread_z_60s
         cutoff_60s = now_ms - 60_000
-        cutoff_2s = now_ms - 2_000
+        # Keep 2.5s of last prices — vol_2s needs 2s, ret_1s needs
+        # to find a price that is genuinely >=1s old even after pruning
+        cutoff_last = now_ms - 2_500
         while self._deque_spread and self._deque_spread[0][0] < cutoff_60s:
             self._deque_spread.popleft()
-        while self._deque_last and self._deque_last[0][0] < cutoff_2s:
+        while self._deque_last and self._deque_last[0][0] < cutoff_last:
             self._deque_last.popleft()
         # ticks deque used for trade counts in 500ms window
         cutoff_500 = now_ms - 500
@@ -83,17 +84,17 @@ class FeatureState:
         # Time windows
         trades_per_500ms = float(len(self._deque_ticks))
 
-        # ret_1s: compare to price ~1s ago
-        if len(self._deque_last) == 0 or self._deque_last[0][0] > ts_ms - 1000:
-            ret_1s = 0.0
-        else:
-            # first element in deque is oldest within ~1s window edge
-            last_1s_ago = self._deque_last[0][1]
-            ret_1s = last - last_1s_ago
+        # ret_1s: compare to price closest to (but at least) 1s ago
+        cutoff_1s = ts_ms - 1000
+        ret_1s = 0.0
+        for t_old, p_old in self._deque_last:
+            if t_old <= cutoff_1s:
+                ret_1s = last - p_old
+                break  # oldest qualifying entry (closest to 1s ago)
 
-        # vol_2s: std of last in 2s window using ticks deque (reuse last list within 2s)
+        # vol_2s: std of last in 2s window — use ddof=1 to match pandas default
         last_vals = [v for t, v in self._deque_last if t >= ts_ms - 2_000]
-        vol_2s = float(np.std(last_vals, ddof=0)) if len(last_vals) >= 2 else 0.0
+        vol_2s = float(np.std(last_vals, ddof=1)) if len(last_vals) >= 2 else 0.0
 
         # spread_z_60s
         sp_vals = [v for t, v in self._deque_spread]

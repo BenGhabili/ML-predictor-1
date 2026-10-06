@@ -1,0 +1,2 @@
+symbol,target,horizon,rows,f1_mean,f1_std,pct_flat,pct_up,pct_dn,prec_up,prec_dn,recall_up,recall_dn,win_rate,signals_per_day,ev_per_trade_ticks,daily_ev_usd
+NQ,1.0,10,359364,0.5671079963136398,0.07516608610390561,0.0358,0.4845,0.4797,0.5921,0.5311,0.5531,0.615,0.5601,29489.1,0.1203,17736.33

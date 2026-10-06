@@ -141,6 +141,9 @@ if __name__ == "__main__":
     p.add_argument("--london_hours", default=None)
     p.add_argument("--targets_net_ticks", default=None, help="Comma list, e.g. 1,4,8,12,20")
     p.add_argument("--horizons_s", default=None, help="Comma list, e.g. 5,10,30,45,90")
+    p.add_argument("--tick-value-usd", type=float, default=None, help="Tick value in USD (NQ=5, ES=12.5)")
+    p.add_argument("--fees-roundtrip", type=float, default=None, help="Round-trip fees in USD")
+    p.add_argument("--slippage-ticks", type=float, default=None, help="Slippage per side in ticks")
     p.add_argument("--no-save", action="store_true")
     args = p.parse_args()
 
@@ -157,5 +160,11 @@ if __name__ == "__main__":
         overrides.setdefault("labels", {})["targets_net_ticks"] = _parse_list_numbers(args.targets_net_ticks, cast=float)
     if args.horizons_s:
         overrides.setdefault("labels", {})["horizons_s"] = _parse_list_numbers(args.horizons_s, cast=int)
+    if args.tick_value_usd is not None:
+        overrides.setdefault("costs", {})["tick_value_usd"] = args.tick_value_usd
+    if args.fees_roundtrip is not None:
+        overrides.setdefault("costs", {})["fees_roundtrip_usd"] = args.fees_roundtrip
+    if args.slippage_ticks is not None:
+        overrides.setdefault("costs", {})["slippage_ticks_per_side"] = args.slippage_ticks
 
     main(input_path=Path(args.input), out_dir=Path(args.out_dir), overrides=overrides, no_save=args.no_save)
